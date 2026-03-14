@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Trucking Freight Rate Calculator - Pakistan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 400px; }
+        .result-card { background: linear-gradient(135deg, #10b981, #059669); }
+    </style>
+</head>
+<body class="bg-gray-950 text-white">
+    <div class="max-w-7xl mx-auto p-6">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-emerald-400">🚛 Smart Trucking</h1>
+                <p class="text-emerald-300 text-xl">Pakistan Freight Rate Calculator</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-gray-400">Balanced Win-Win Pricing</p>
+                <p class="text-2xl font-mono font-bold text-emerald-400" id="total-price">PKR 0</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- MAP & ROUTE SECTION -->
+            <div class="bg-gray-900 rounded-3xl p-6">
+                <h2 class="text-2xl font-semibold mb-4 flex items-center gap-2">
+                    📍 Pickup &amp; Delivery (Pakistan)
+                </h2>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Pickup Location</label>
+                        <input id="pickup" type="text" placeholder="e.g. Lahore, Punjab" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Delivery Location</label>
+                        <input id="delivery" type="text" placeholder="e.g. Karachi, Sindh" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-400">
+                    </div>
+                </div>
+                <button onclick="calculateRoute()" 
+                        class="w-full bg-emerald-500 hover:bg-emerald-600 py-4 rounded-2xl font-bold text-lg transition">
+                    🗺️ Calculate Route &amp; Distance (Auto)
+                </button>
+
+                <div id="map" class="mt-6 rounded-2xl overflow-hidden shadow-2xl"></div>
+
+                <div id="route-info" class="mt-4 hidden bg-gray-800 rounded-2xl p-4 text-sm">
+                    <div class="flex justify-between">
+                        <span>Distance:</span>
+                        <span id="distance" class="font-mono font-bold text-emerald-400">0 km</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Est. Time:</span>
+                        <span id="duration" class="font-mono">0 hrs</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INPUTS & CALCULATION -->
+            <div class="bg-gray-900 rounded-3xl p-6">
+                <h2 class="text-2xl font-semibold mb-6">🚚 Shipment Details</h2>
+
+                <div class="grid grid-cols-2 gap-6">
+                    <!-- Truck Type -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Truck Type</label>
+                        <select id="truck-type" onchange="updateEfficiency()" 
+                                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                            <option value="Dry Van">Dry Van (Standard)</option>
+                            <option value="Reefer">Reefer (Refrigerated)</option>
+                            <option value="Flatbed">Flatbed</option>
+                        </select>
+                    </div>
+
+                    <!-- Fuel Price (Auto Pakistan default) -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Fuel Price (PKR/Liter)</label>
+                        <input id="fuel-price" type="number" value="335.86" step="0.01"
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+
+                    <!-- Fuel Efficiency -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Fuel Efficiency (km/L)</label>
+                        <input id="efficiency" type="number" value="3.5" step="0.1"
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+
+                    <!-- Maintenance -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Maintenance (PKR/km)</label>
+                        <input id="maintenance" type="number" value="6" step="0.5"
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+
+                    <!-- Driver Rate -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Driver Rate (PKR/km)</label>
+                        <input id="driver-rate" type="number" value="15" step="1"
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+
+                    <!-- Toll Tax (Auto via route preference) -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Toll Preference</label>
+                        <select id="toll-preference" onchange="calculateRate()" 
+                                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                            <option value="0">Local Roads (No Toll)</option>
+                            <option value="8" selected>Motorway (Toll ~12 PKR/km)</option>
+                            <option value="12">Heavy Toll Route (18 PKR/km)</option>
+                        </select>
+                    </div>
+
+                    <!-- Profit Margin -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Driver Profit Margin (%)</label>
+                        <input id="profit" type="number" value="20" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+                </div>
+
+                <!-- Cargo -->
+                <div class="mt-6 grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Weight (kg)</label>
+                        <input id="weight" type="number" value="10000" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Commodity Type</label>
+                        <select id="commodity" onchange="calculateRate()" 
+                                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                            <option value="0">General Freight</option>
+                            <option value="20">Refrigerated (+20%)</option>
+                            <option value="15">Hazardous (+15%)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button onclick="calculateRate()" 
+                        class="mt-8 w-full bg-emerald-600 hover:bg-emerald-700 py-5 rounded-2xl font-bold text-xl transition flex items-center justify-center gap-3">
+                    <span>💰 GENERATE FAIR FREIGHT RATE</span>
+                </button>
+
+                <!-- RESULT BREAKDOWN -->
+                <div id="results" class="mt-8 hidden result-card rounded-3xl p-6 text-white">
+                    <h3 class="text-2xl font-bold mb-4">📊 Fair Rate Breakdown</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between"><span>Fuel Cost</span><span id="fuel-cost">PKR 0</span></div>
+                        <div class="flex justify-between"><span>Maintenance</span><span id="maint-cost">PKR 0</span></div>
+                        <div class="flex justify-between"><span>Driver Cost</span><span id="driver-cost">PKR 0</span></div>
+                        <div class="flex justify-between"><span>Toll Tax (Auto)</span><span id="toll-cost">PKR 0</span></div>
+                        <div class="flex justify-between"><span>Cargo Surcharge</span><span id="surcharge">PKR 0</span></div>
+                        <div class="h-px bg-white/30 my-3"></div>
+                        <div class="flex justify-between font-bold"><span>Base Cost</span><span id="base-cost">PKR 0</span></div>
+                        <div class="flex justify-between font-bold"><span>Profit Margin</span><span id="profit-amount">PKR 0</span></div>
+                        <div class="h-px bg-white/30 my-3"></div>
+                        <div class="flex justify-between text-xl font-bold"><span>TOTAL FREIGHT PRICE</span><span id="final-total" class="font-mono">PKR 0</span></div>
+                        <div class="flex justify-between text-lg"><span>Rate per KM</span><span id="rate-per-km" class="font-mono">PKR 0/km</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="text-center text-gray-500 text-xs mt-12">
+            Pakistan-specific • Real-time Map Routing (OSRM) • Auto Toll • Win-Win for Shipper &amp; Driver
+            <br>Save as index.html and open in any browser (no installation needed)
+        </footer>
+    </div>
+
+    <script>
+        // Tailwind script
+        tailwind.config = { content: ["*"], theme: { extend: {} } }
+
+        // Leaflet Map
+        let map, routeLayer;
+        function initMap() {
+            map = L.map('map').setView([30.3753, 69.3451], 6); // Center Pakistan
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Geocode using Nominatim
+        async function geocode(address) {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Pakistan")}&limit=1`);
+            const data = await res.json();
+            if (data.length === 0) throw new Error("Location not found");
+            return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        }
+
+        // Calculate Route with OSRM (free public server)
+        async function calculateRoute() {
+            const pickupAddr = document.getElementById("pickup").value || "Lahore";
+            const deliveryAddr = document.getElementById("delivery").value || "Karachi";
+
+            try {
+                const start = await geocode(pickupAddr);
+                const end = await geocode(deliveryAddr);
+
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=polyline`;
+                const res = await fetch(osrmUrl);
+                const data = await res.json();
+
+                if (data.routes && data.routes[0]) {
+                    const route = data.routes[0];
+                    const distanceKm = (route.distance / 1000).toFixed(1);
+                    const durationHr = (route.duration / 3600).toFixed(1);
+
+                    document.getElementById("distance").textContent = distanceKm + " km";
+                    document.getElementById("duration").textContent = durationHr + " hrs";
+                    document.getElementById("route-info").classList.remove("hidden");
+
+                    // Draw route
+                    if (routeLayer) map.removeLayer(routeLayer);
+                    const polyline = L.polyline.fromEncoded(route.geometry, { color: '#10b981', weight: 6 }).addTo(map);
+                    routeLayer = polyline;
+                    map.fitBounds(polyline.getBounds());
+
+                    // Store global distance for calculation
+                    window.currentDistance = parseFloat(distanceKm);
+
+                    // Auto calculate rate after route
+                    calculateRate();
+                }
+            } catch (e) {
+                alert("Route error: " + e.message + "\n\nTip: Try common cities like Lahore, Karachi, Islamabad, Peshawar");
+            }
+        }
+
+        // Update efficiency based on truck type
+        function updateEfficiency() {
+            const type = document.getElementById("truck-type").value;
+            let eff = 3.5;
+            if (type === "Reefer") eff = 2.8;     // extra cooling load
+            else if (type === "Flatbed") eff = 3.2;
+            document.getElementById("efficiency").value = eff;
+            calculateRate();
+        }
+
+        // Main Calculation Engine
+        function calculateRate() {
+            const distance = window.currentDistance || 300; // fallback Islamabad-Karachi ~1200km but safe default
+            const fuelPrice = parseFloat(document.getElementById("fuel-price").value) || 335.86;
+            let efficiency = parseFloat(document.getElementById("efficiency").value) || 3.5;
+            const maint = parseFloat(document.getElementById("maintenance").value) || 6;
+            const driverRate = parseFloat(document.getElementById("driver-rate").value) || 15;
+            const tollRate = parseFloat(document.getElementById("toll-preference").value) || 0;
+            const profitMargin = parseFloat(document.getElementById("profit").value) || 20;
+            const weight = parseFloat(document.getElementById("weight").value) || 10000;
+            const commoditySurcharge = parseFloat(document.getElementById("commodity").value) || 0;
+
+            // Fuel cost
+            const fuelLiters = distance / efficiency;
+            const fuelCost = fuelLiters * fuelPrice;
+
+            // Other costs
+            const maintCost = distance * maint;
+            const driverCost = distance * driverRate;
+            const tollCost = distance * tollRate;
+
+            // Surcharge (weight + commodity)
+            let surcharge = 0;
+            if (weight > 20000) surcharge += distance * 2; // heavy load
+            surcharge += (fuelCost + maintCost + driverCost + tollCost) * (commoditySurcharge / 100);
+
+            const baseCost = fuelCost + maintCost + driverCost + tollCost + surcharge;
+
+            // Profit
+            const profitAmount = baseCost * (profitMargin / 100);
+            const totalFreight = baseCost + profitAmount;
+
+            const ratePerKm = (totalFreight / distance).toFixed(1);
+
+            // Update UI
+            document.getElementById("fuel-cost").textContent = "PKR " + Math.round(fuelCost);
+            document.getElementById("maint-cost").textContent = "PKR " + Math.round(maintCost);
+            document.getElementById("driver-cost").textContent = "PKR " + Math.round(driverCost);
+            document.getElementById("toll-cost").textContent = "PKR " + Math.round(tollCost);
+            document.getElementById("surcharge").textContent = "PKR " + Math.round(surcharge);
+            document.getElementById("base-cost").textContent = "PKR " + Math.round(baseCost);
+            document.getElementById("profit-amount").textContent = "PKR " + Math.round(profitAmount);
+            document.getElementById("final-total").textContent = "PKR " + Math.round(totalFreight);
+            document.getElementById("rate-per-km").textContent = "PKR " + ratePerKm + "/km";
+            document.getElementById("total-price").textContent = "PKR " + Math.round(totalFreight);
+
+            document.getElementById("results").classList.remove("hidden");
+        }
+
+        // Init
+        window.onload = function() {
+            initMap();
+            // Default route example
+            setTimeout(() => {
+                document.getElementById("pickup").value = "Islamabad";
+                document.getElementById("delivery").value = "Lahore";
+                // User can click button for full auto
+            }, 800);
+        };
+    </script>
+</body>
+</html>
